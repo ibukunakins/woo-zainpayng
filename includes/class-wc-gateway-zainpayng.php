@@ -64,7 +64,7 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
         // Payment listener/API hook.
         add_action( 'woocommerce_api_wc_gateway_zainpayng', array( $this, 'verify_zainpayng_transaction' ) );
 
-        // Webhook listener/API hook.
+        // TODO: Webhook listener/API hook.
 //        add_action( 'woocommerce_api_wc_zainpayng_webhook', array( $this, 'process_webhooks' ) );
 
         // Check if the gateway can be used.
@@ -333,6 +333,7 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
         $order = wc_get_order($order_id);
         $this->logger->add('zainpayng', 'ZainpayNG Payment Verification Result: '. json_encode($zainpay_response));
         if($zainpay_response->code === '00' && $zainpay_response->description === 'successful' && round($order->get_total() * 100) == $zainpay_response->data->depositedAmount ) {
+            // TODO: Check if the amount currency is the same as the order amount currency
             $order->payment_complete($txnRef);
             $order->add_order_note('Payment successful. Transaction Reference: ' . $txnRef);
             $order->save();
@@ -350,7 +351,7 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
     }
 
     /**
-     * Process Webhook.
+     * TODO: Process Webhook.
      */
 //    public function process_webhooks() {
 //
