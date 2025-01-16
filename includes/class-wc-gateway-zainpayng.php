@@ -332,15 +332,13 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
         $order_id = $order_details[0];
         $order = wc_get_order($order_id);
         $this->logger->add('zainpayng', 'ZainpayNG Payment Verification Result: '. json_encode($zainpay_response));
-        if($zainpay_response->code === '00' && $zainpay_response->description === 'successful' && round($order->get_total() * 100) === $zainpay_response->data->depositedAmount ) {
+        if($zainpay_response->code === '00' && $zainpay_response->description === 'successful' && round($order->get_total() * 100) == $zainpay_response->data->depositedAmount ) {
             $order->payment_complete($txnRef);
             $order->add_order_note('Payment successful. Transaction Reference: ' . $txnRef);
             $order->save();
             $order->update_status($this->payment_completion_status);
 
         } else {
-            $order_id = $zainpay_response->data->txnRef;
-            $order = wc_get_order($order_id);
             $order->update_status('failed');
             $order->add_order_note('Payment failed. Reason: ' . $zainpay_response->description);
             $order->save();
