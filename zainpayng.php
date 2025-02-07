@@ -94,7 +94,7 @@ function zainpayng_register_payment_method() : void {
     }
 
     // Include the custom Blocks Checkout class
-    require_once plugin_dir_path(__FILE__) . 'includes\class-wc-block-zainpayng.php';
+    require_once plugin_dir_path(__FILE__) . 'includes/class-wc-block-zainpayng.php';
 
     // Hook the registration function to the 'woocommerce_blocks_payment_method_type_registration' action
     add_action(
