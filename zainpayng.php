@@ -7,9 +7,9 @@
  * Author URI: https://ibukunakins.me
  * License URI: http://www.gnu.org/licenses/gpl-2.0.txt
  * Requires Plugins: woocommerce
- * Requires at least: 5.0
+ * Requires at least: 6.0
  * Requires PHP: 7.4
- * Text Domain: zainpayng
+ * Text Domain: woo-zainpayng
  * Domain Path: /languages
  * Version: 1.0.0
  */
@@ -18,6 +18,10 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+define( 'WC_ZAINPAYNG_MAIN_FILE', __FILE__ );
+define( 'WC_ZAINPAYNG_URL', untrailingslashit( plugins_url( '/', __FILE__ ) ) );
+
+define( 'WC_ZAINPAYNG_VERSION', '1.0' );
 
 add_action(
     'before_woocommerce_init',
@@ -51,7 +55,7 @@ function zainpayng_add_gateway_class($gateways) {
         $gateways[] = 'WC_Gateway_Zainpayng';
     } else {
         add_action('admin_notices', function() {
-            echo '<div class="notice notice-warning"><p><strong>ZainpayNG Woocommerce Plugin:</strong> Only NGN and USD currencies are supported. Please change your WooCommerce currency to NGN or USD to use ZainpayNG.</p></div>';
+            echo '<div class="notice notice-warning"><p><strong>ZainpayNG Woocommerce Plugin:</strong> ' . __('Only NGN and USD currencies are supported. Please change your WooCommerce currency to NGN or USD to use ZainpayNG', 'woo-zainpayng').'</p></div>';
         });
     }
 
@@ -105,6 +109,17 @@ function zainpayng_register_payment_method() : void {
         }
     );
 }
+
+// Hook in
+add_filter( 'woocommerce_checkout_fields' , 'make_billing_phone_field_required' );
+
+// Our hooked in function - $fields is passed via the filter!
+function make_billing_phone_field_required( $fields ) {
+    $fields['order']['billing_phone']['required'] = true;
+    return $fields;
+}
+
+
 
 
 // Include the Gateway Class
