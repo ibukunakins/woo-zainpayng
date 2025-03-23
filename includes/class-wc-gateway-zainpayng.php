@@ -28,28 +28,35 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
             'products'
         );
         $this->logger = new WC_Logger();
-
+        $gateway_title = $this->get_option( 'title' );
         // Load the settings
         $this->init_form_fields();
         $this->init_settings();
 
+        $this->method_title       = sprintf( __( 'ZainPay by BetaStack - %s', 'woo-zainpayng') , $gateway_title );
+        $this->method_description = sprintf( __( 'ZainPay by Betastack provides the easiest way to collect money for fast payments using Mastercard, Visa, Verve Cards and Bank Accounts. <a href="%1$s" target="_blank">Sign up</a> for a ZainPay account, and <a href="%2$s" target="_blank">get your API keys</a>.', 'woo-zainpayng' ), 'https://zainpay.ng', 'https://zainpay.ng/merchant/dashboard/settings' );
         // Retrieve settings
         $this->title                        = $this->get_option('title');
         $this->description                  = $this->get_option('description');
         $this->enabled                      = $this->get_option('enabled');
+        $this->payment_page                 = $this->get_option('payment_page');
         $this->testmode                     = $this->get_option('testmode') === 'yes' ? true : false;
         $this->payment_completion_status    = $this->get_option( 'payment_completion_status' );
         $this->test_secret_key              = $this->get_option('test_secret_key');
         $this->test_public_key              = $this->get_option('test_public_key');
+        $this->test_inline_key              = $this->get_option('test_inline_key');
         $this->live_secret_key              = $this->get_option('live_secret_key');
         $this->live_public_key              = $this->get_option('live_public_key');
+        $this->live_inline_key              = $this->get_option('live_inline_key');
         $this->zainbox_code                 = $this->get_option('zainbox_code');
         $this->customer_logo_url            = has_custom_logo() ? wp_get_attachment_image_src( get_theme_mod( 'custom_logo' ), 'full' )[0] :
                                                 WC_HTTPS::force_https_url( plugin_dir_url(__FILE__) . '../assets/zainpayng-logo.png') ;
 
         $this->public_key = $this->testmode ? $this->test_public_key : $this->live_public_key;
         $this->secret_key = $this->testmode ? $this->test_secret_key : $this->live_secret_key;
+        $this->inline_key = $this->testmode ? $this->test_inline_key : $this->live_inline_key;
 
+        add_action( 'wp_enqueue_scripts', array( $this, 'payment_scripts' ) );
         add_action( 'admin_notices', array( $this, 'admin_notices' ) );
         add_action(
             'woocommerce_update_options_payment_gateways_' . $this->id,
@@ -65,7 +72,7 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
         add_action( 'woocommerce_api_wc_gateway_zainpayng', array( $this, 'verify_zainpayng_transaction' ) );
 
         // TODO: Webhook listener/API hook.
-//        add_action( 'woocommerce_api_wc_zainpayng_webhook', array( $this, 'process_webhooks' ) );
+        //add_action( 'woocommerce_api_wc_zainpayng_webhook', array( $this, 'process_webhooks' ) );
 
         // Check if the gateway can be used.
         if ( ! $this->is_valid_for_use() ) {
@@ -79,73 +86,98 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
     public function init_form_fields() {
         $this->form_fields = array(
             'enabled'               => array(
-                'title'     => 'Enable/Disable',
+                'title'     => __('Enable/Disable', 'woo-zainpayng'),
                 'type'      => 'checkbox',
-                'label'     => 'Enable ZainpayNG Payment option on the checkout page',
+                'label'     => __('Enable ZainpayNG Payment option on the checkout page', 'woo-zainpayng'),
                 'default'   => 'no',
                 'desc_tip'  => true,
             ),
             'title'                 => array(
-                'title'       => 'Title',
+                'title'       => __('Title', 'woo-zainpayng'),
                 'type'        => 'text',
-                'description' => 'This controls the payment method title the user sees during checkout.',
-                'default'     => 'Debit/Credit Card (ZainpayNG)',
+                'description' => __('This controls the payment method title the user sees during checkout.', 'woo-zainpayng'),
+                'default'     => 'ZainpayNG - Debit/Credit Cards',
                 'desc_tip'    => true,
             ),
             'description' => array(
-                'title'       => 'Description',
+                'title'       => __('Description', 'woo-zainpayng'),
                 'type'        => 'textarea',
-                'description' => 'This controls the payment method description the user sees during checkout.',
-                'default'     => 'Pay securely using ZainpayNG.',
+                'description' => __('This controls the payment method description the user sees during checkout.', 'woo-zainpayng'),
+                'default'     => __('Pay securely using ZainpayNG.', 'woo-zainpayng'),
             ),
             'testmode'                         => array(
-                'title'       => 'Test mode',
-                'label'       => 'Enable Test Mode',
+                'title'       => __('Test mode', 'woo-zainpayng'),
+                'label'       => __('Enable Test Mode', 'woo-zainpayng'),
                 'type'        => 'checkbox',
-                'description' => 'Test mode enables you to test payments before going live. <br />Ensure the LIVE MODE is enabled on your ZainpayNG account before you uncheck this',
+                'description' => __('Test mode enables you to test payments before going live. Ensure the LIVE MODE is enabled on your ZainpayNG account before you uncheck this', 'woo-zainpayng'),
                 'default'     => 'yes',
                 'desc_tip'    => true,
             ),
+            'payment_page'                     => array(
+                'title'       => __('Payment Option', 'woo-zainpayng'),
+                'type'        => 'select',
+                'description' => __('Popup shows the payment popup on the page while Redirect will redirect the customer to ZainPayNG to make payment.', 'woo-zainpayng'),
+                'default'     => '',
+                'desc_tip'    => false,
+                'options'     => array(
+                    ''          => __('Select One', 'woo-zainpayng'),
+                    'inline'    => __('Popup', 'woo-zainpayng'),
+                    'redirect'  => __('Redirect', 'woo-zainpayng'),
+                ),
+            ),
             'zainbox_code'                  => array(
-                'title'       => 'Zainbox Code',
+                'title'       => __('Zainbox Code', 'woo-zainpayng'),
                 'type'        => 'text',
-                'description' => 'Enter your Zainbox code here',
+                'description' => __('Enter your Zainbox code here', 'woo-zainpayng'),
                 'default'     => '',
             ),
             'test_secret_key'                  => array(
-                'title'       => 'Test Secret Key',
+                'title'       => __('Test Secret Key', 'woo-zainpayng'),
                 'type'        => 'password',
-                'description' => 'Enter your Test Secret Key here', 
+                'description' => __('Enter your Test Secret Key here', 'woo-zainpayng'),
                 'default'     => '',
             ),
             'test_public_key'                  => array(
-                'title'       => 'Test Public Key',
+                'title'       => __('Test Public Key', 'woo-zainpayng'),
                 'type'        => 'text',
-                'description' => 'Enter your Test Public Key here.',
+                'description' => __('Enter your Test Public Key here.', 'woo-zainpayng'),
                 'default'     => '',
             ),
-            'live_secret_key'                  => array(
-                'title'       => 'Live Secret Key',
+            'test_inline_key'                  => array(
+                'title'       => __('Test Inline Payment Key', 'woo-zainpayng'),
+                'type'        => 'text',
+                'description' => __('Enter your Inline Payment Key here if you want to use Pop up Payment.', 'woo-zainpayng'),
+                'default'     => '',
+            ),
+
+            'live_secret_key' => array(
+                'title'       => __('Live Secret Key', 'woo-zainpayng'),
                 'type'        => 'password',
-                'description' => 'Enter your Live Secret Key here.', 
+                'description' => __('Enter your Live Secret Key here.', 'woo-zainpayng'),
                 'default'     => '',
             ),
-            'live_public_key'                  => array(
-                'title'       => 'Live Public Key', 
+            'live_public_key' => array(
+                'title'       => __('Live Public Key', 'woo-zainpayng'),
                 'type'        => 'text',
-                'description' => 'Enter your Live Public Key here.',
+                'description' => __('Enter your Live Public Key here.', 'woo-zainpayng'),
+                'default'     => '',
+            ),
+            'live_inline_key' => array(
+                'title'       => __('Live Inline Payment Key', 'woo-zainpayng'),
+                'type'        => 'text',
+                'description' => __('Enter your Live Inline Payment Key here if you want to use Pop up Payment.', 'woo-zainpayng'),
                 'default'     => '',
             ),
             'payment_completion_status' => array(
-                'title'       => 'Payment Completion Status',
+                'title'       => __('Payment Completion Status', 'woo-zainpayng'),
                 'type'        => 'select',
-                'description' => 'The Status of the order when payment is successful.',
+                'description' => __('The Status of the order when payment is successful.', 'woo-zainpayng'),
                 'default'     => 'wc-processing',
                 'desc_tip'    => true,
                 'options'     => array(
-                    'wc-processing' => 'Processing',
-                    'wc-completed'  => 'Completed',
-                    'wc-on-hold'    => 'On Hold',
+                    'wc-processing' => __('Processing', 'woo-zainpayng'),
+                    'wc-completed'  => __('Completed', 'woo-zainpayng'),
+                    'wc-on-hold'    => __('On Hold', 'woo-zainpayng'),
                 ),
             ),
 
@@ -160,7 +192,7 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
 
         if ( ! in_array( get_woocommerce_currency(), apply_filters( 'woocommerce_zainpayng_supported_currencies', array( 'NGN', 'USD') ) ) ) {
 
-            $this->msg = sprintf( 'ZainpayNG does not support your store currency. Kindly set it to either NGN (&#8358) or USD (&#36;) <a href="%s">here</a>', admin_url( 'admin.php?page=wc-settings&tab=general' )) ;
+            $this->msg = sprintf( __('ZainpayNG does not support your store currency. Kindly set it to either NGN (&#8358) or USD (&#36;) <a href="%s">here</a>', 'woo-zainpayng'), admin_url( 'admin.php?page=wc-settings&tab=general' )) ;
 
             return false;
 
@@ -203,7 +235,7 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
 
         // Check required fields.
         if ( ! ( $this->public_key && $this->secret_key) ) {
-            echo '<div class="error"><p>' . sprintf('Please enter your ZainpayNG merchant and Zainbox code details <a href="%s">here</a> to be able to use the ZainpayNG WooCommerce Payment Plugin.', admin_url( 'admin.php?page=wc-settings&tab=checkout&section=zainpayng' )) . '</p></div>';
+            echo '<div class="error"><p>' . sprintf(__('Please enter your ZainpayNG merchant and Zainbox code details <a href="%s">here</a> to be able to use the ZainpayNG WooCommerce Payment Plugin.', 'woo-zainpayng'), admin_url( 'admin.php?page=wc-settings&tab=checkout&section=zainpayng' )) . '</p></div>';
             return;
         }
 
@@ -214,8 +246,24 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
      */
     public function process_payment($order_id) {
         $order = wc_get_order($order_id);
+        $this->logger->debug('Processing payment for order: ' . $order_id);
+        if ( 'redirect' === $this->payment_page ) {
+            return $this->process_redirect_payment_option( $order_id );
+        }
 
-        // Zainpay API Request
+        if('inline' === $this->payment_page && $_POST['zainpayng_txnref']) {
+            $txnRef = sanitize_text_field( $_POST[ 'zainpayng_txnref' ] );
+            return $this->verify_inline_payment($order_id, $txnRef);
+        }
+
+        return array(
+            'result'   => 'success',
+            'redirect' => $order->get_checkout_payment_url( true ),
+        );
+    }
+
+    private function process_redirect_payment_option($order_id) {
+        $order = wc_get_order($order_id);
         $response = $this->send_zainpayng_request($order);
         $this->logger->add('zainpayng', 'Response: ' . $response->data . ' and ' . $response->description);
         if ($response->code === '00') {
@@ -232,7 +280,6 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
             );
         }
     }
-
 
 
     /**
@@ -293,13 +340,13 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
 
         $order = wc_get_order( $order_id );
 
-        echo '<div id="wc-zainpayng-form">';
+        echo '<div id="wc_zainpayng_form">';
 
         echo '<p>' .'Thank you for your order, please click the button below to pay with ZainPay.' . '</p>';
 
-        echo '<div id="zainpay_form"><form id="order_review" method="post" action="' . WC()->api_request_url( 'WC_Gateway_Zainpayng' ) . '"></form><button class="button" id="zainpayng-payment-button">' . 'Pay Now' . '</button>';
+        echo '<div id="zainpayng_payment_form"><form id="order_review" method="post" action="' . WC()->api_request_url( 'WC_Gateway_Zainpayng' ) . '"></form> <button class="button" id="zainpayng_payment_button">' . __('Pay Now', 'woo-zainpayng') . '</button>';
 
-        echo '  <a class="button cancel" id="zainpayng-cancel-payment-button" href="' . esc_url( $order->get_cancel_order_url() ) . '">' . 'Cancel order &amp; restore cart' . '</a></div>';
+        echo '  <a class="button cancel" id="zainpayng-cancel-payment-button" href="' . esc_url( $order->get_cancel_order_url() ) . '">' . __('Cancel order &amp; restore cart', 'woo-zainpayng') . '</a></div>';
 
         echo '</div>';
 
@@ -308,15 +355,20 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
      * Verify Paystack payment.
      */
     public function verify_zainpayng_transaction() {
+
         $this->logger->add('zainpayng', 'ZainpayNG Payment Verification' . $_GET['txnRef']);
 
+        $txnRef = false;
         if ( isset( $_REQUEST['txnRef'] ) ) {
             $txnRef = sanitize_text_field( $_REQUEST['txnRef'] );
-        } else {
-            $txnRef = false;
         }
+        if(isset( $_REQUEST['zainpayng_txnref'])){
+            $txnRef = sanitize_text_field( $_REQUEST['zainpayng_txnref'] );
+        }
+
         if( ! $txnRef ) {
             $this->logger->add('zainpayng', 'Transaction Reference not found');
+            wp_redirect( wc_get_page_by_title( 'Checkout' ) );
             return;
         }
 
@@ -325,7 +377,7 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
         $zainpay_response = $this->get_zainpayng_transaction_details($txnRef);
 
         if(false === $zainpay_response){
-            $this->logger->add('zainpayng', 'Failed to verify transaction');
+            $this->logger->add('zainpayng', 'Failed to verify transaction: ' . $txnRef);
             return;
         }
         $order_details = explode('_', $zainpay_response->data->txnRef);
@@ -335,14 +387,15 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
         if($zainpay_response->code === '00' && $zainpay_response->description === 'successful' && round($order->get_total() * 100) == $zainpay_response->data->depositedAmount ) {
             // TODO: Check if the amount currency is the same as the order amount currency
             $order->payment_complete($txnRef);
-            $order->add_order_note('Payment successful. Transaction Reference: ' . $txnRef);
+            $order->add_order_note(__('Payment successful. Transaction Reference: ', 'woo-zainpayng') . $txnRef);
             $order->save();
             $order->update_status($this->payment_completion_status);
 
         } else {
             $order->update_status('failed');
-            $order->add_order_note('Payment failed. Reason: ' . $zainpay_response->description);
+            $order->add_order_note(__('Payment failed. Reason: ', 'woo-zainpayng') . $zainpay_response->description);
             $order->save();
+            wp_redirect( $order->get_checkout_payment_url( true ) );
         }
 
         wp_redirect( $this->get_return_url( $order ) );
@@ -350,39 +403,104 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
 
     }
 
-    /**
-     * TODO: Process Webhook.
-     */
-//    public function process_webhooks() {
-//
-//        $request_body = file_get_contents('php://input');
-//        $request_data = json_decode($request_body, true);
-//
-//        if (isset($request_data['event'])) {
-//            $event = $request_data['event'];
-//
-//            if ($event === 'payment.success') {
-//                $txn_ref = $request_data['data']['txn_ref'];
-//                $order_id = $request_data['data']['order_id'];
-//                $order = wc_get_order($order_id);
-//
-//                if ($order) {
-//                    $order->payment_complete($txn_ref);
-//                    $order->add_order_note('Payment successful. Transaction Reference: ' . $txn_ref);
-//                    $order->save();
-//
-//                    if ($this->is_autocomplete_order_enabled($order)) {
-//                        $order->update_status('completed');
-//                    }
-//                }
-//            }
-//        }
-//
-//        wp_send_json(array('status' => 'success'));
-//    }
+    public function payment_scripts() {
+
+        if ( isset( $_GET['pay_for_order'] ) || ! is_checkout_pay_page() ) {
+            return;
+        }
+
+        if ( $this->enabled === 'no' ) {
+            return;
+        }
+
+        $order_key = urldecode( $_GET['key'] );
+        $order_id  = absint( get_query_var( 'order-pay' ) );
+
+        $order = wc_get_order( $order_id );
+
+        if ( $this->id !== $order->get_payment_method() ) {
+            return;
+        }
+
+
+        wp_enqueue_script( 'jquery' );
+
+        wp_enqueue_script( 'zainpayng', $this->get_zainpayng_inline_js_url(), array( 'jquery' ), WC_ZAINPAYNG_VERSION, false );
+
+        wp_enqueue_script( 'wc_zainpayng', plugins_url( 'assets/zainpayng' . '.js', WC_ZAINPAYNG_MAIN_FILE ), array( 'jquery', 'zainpayng' ), WC_ZAINPAYNG_VERSION, false );
+
+        if ( is_checkout_pay_page() && get_query_var( 'order-pay' ) ) {
+
+            $email         = $order->get_billing_email();
+            $amount        = $order->get_total() ;
+            $txnRef        = $order_id . '_' . uniqid();
+            $the_order_id  = $order->get_id();
+            $the_order_key = $order->get_order_key();
+            $currency      = $order->get_currency();
+            $mobileNumber  = $order->get_billing_phone();
+
+
+            if ( $the_order_id == $order_id && $the_order_key == $order_key ) {
+
+                $zainpayng_params['emailAddress']    = $email;
+                $zainpayng_params['mobileNumber'] = $mobileNumber;
+                $zainpayng_params['amount']   = absint( $amount );
+                $zainpayng_params['txnRef']   = $txnRef;
+                $zainpayng_params['currencyCode'] = $currency;
+                $zainpayng_params['zainboxCode'] = $this->zainbox_code;
+                $zainpayng_params['reference'] = $the_order_key;
+                $zainpayng_params['logoUrl'] = $this->customer_logo_url;
+                $zainpayng_params['inline_key'] = $this->inline_key;
+                $zainpayng_params['callBackUrl'] = WC()->api_request_url( 'WC_Gateway_Zainpayng' );
+
+            }
+
+
+            $order->update_meta_data( '_zainpay_txn_ref', $txnRef );
+            $order->save();
+        }
+
+        wp_localize_script( 'wc_zainpayng', 'wc_zainpayng_params', $zainpayng_params );
+    }
+
+
+    public function verify_inline_payment_option($order_id, $paymentRef) {
+        $order = wc_get_order($order_id);
+        $txnRef = $order->get_meta('_zainpay_txn_ref');
+        $this->logger->add('zainpayng', 'Verifying Inline Payment Option for order: ' . $order_id . ' with txnRef: ' . $txnRef . ' and paymentRef: ' . $paymentRef);
+
+        if($txnRef !== $paymentRef) {
+            wc_add_notice('Payment error: Transaction reference does not match order', 'error');
+            return array(
+                'result' => 'failure'
+            );
+        }
+        // verify the payment status of the transaction reference
+        $zainpay_response = $this->get_zainpayng_transaction_details($paymentRef);
+        if(false === $zainpay_response){
+            $this->logger->add('zainpayng', 'Failed to verify transaction: ' . $txnRef);
+            return array(
+                'result'  => 'failure',
+                'message' => 'Failed to verify transaction. Please try again later.'
+            );
+        }
+
+
+
+
+
+
+       wp_redirect( $this->get_return_url( $order ) );
+        exit;
+
+    }
 
     private function get_zainpay_api_base_url() {
         return $this->testmode ? 'https://sandbox.zainpay.ng' : 'https://api.zainpay.ng/';
+    }
+
+    private function get_zainpayng_inline_js_url() {
+        return $this->testmode ? 'https://dev.zainpay.ng/v1/zainpay-inline.js' : 'https://api.zainpay.ng/v1/zainpay-inline.js';
     }
 
     private function get_zainpayng_transaction_details($reference) {
