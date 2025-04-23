@@ -385,7 +385,12 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
         $order = wc_get_order($order_id);
         $this->logger->add('zainpayng', 'ZainpayNG Payment Verification Result: '. json_encode($zainpay_response));
         if($zainpay_response->code === '00' && $zainpay_response->description === 'successful' && round($order->get_total() * 100) == $zainpay_response->data->depositedAmount ) {
+
             // TODO: Check if the amount currency is the same as the order amount currency
+            if($order->get_currency() !== $zainpay_response->data->currencyCode) {
+                $this->logger->add('zainpayng', 'Transaction currency not consistent:' . $txnRef . ' ' . $order->get_currency() . ' ' . $zainpay_response->data->currencyCode);
+                $order->add_order_note(__('Payment failed! Currency is not consistent. Please verify with ZainPay.', 'woo-zainpayng') . $zainpay_response->description);
+            }
             $order->payment_complete($txnRef);
             $order->add_order_note(__('Payment successful. Transaction Reference: ', 'woo-zainpayng') . $txnRef);
             $order->save();
@@ -463,44 +468,12 @@ class WC_Gateway_Zainpayng extends WC_Payment_Gateway {
         wp_localize_script( 'wc_zainpayng', 'wc_zainpayng_params', $zainpayng_params );
     }
 
-
-    public function verify_inline_payment_option($order_id, $paymentRef) {
-        $order = wc_get_order($order_id);
-        $txnRef = $order->get_meta('_zainpay_txn_ref');
-        $this->logger->add('zainpayng', 'Verifying Inline Payment Option for order: ' . $order_id . ' with txnRef: ' . $txnRef . ' and paymentRef: ' . $paymentRef);
-
-        if($txnRef !== $paymentRef) {
-            wc_add_notice('Payment error: Transaction reference does not match order', 'error');
-            return array(
-                'result' => 'failure'
-            );
-        }
-        // verify the payment status of the transaction reference
-        $zainpay_response = $this->get_zainpayng_transaction_details($paymentRef);
-        if(false === $zainpay_response){
-            $this->logger->add('zainpayng', 'Failed to verify transaction: ' . $txnRef);
-            return array(
-                'result'  => 'failure',
-                'message' => 'Failed to verify transaction. Please try again later.'
-            );
-        }
-
-
-
-
-
-
-       wp_redirect( $this->get_return_url( $order ) );
-        exit;
-
-    }
-
     private function get_zainpay_api_base_url() {
         return $this->testmode ? 'https://sandbox.zainpay.ng' : 'https://api.zainpay.ng/';
     }
 
     private function get_zainpayng_inline_js_url() {
-        return $this->testmode ? 'https://dev.zainpay.ng/v1/zainpay-inline.js' : 'https://api.zainpay.ng/v1/zainpay-inline.js';
+        return $this->testmode ? 'https://dev.zainpay.ng/v2/zainpay-inline.js' : 'https://api.zainpay.ng/v2/zainpay-inline.js';
     }
 
     private function get_zainpayng_transaction_details($reference) {

@@ -2,16 +2,14 @@ jQuery( function( $ ) {
 
     $( '#wc_zainpayng_form' ).remove();
 
-    // wcZainPayInlinePaymentHandler();
+    wcZainPayInlinePaymentHandler();
 
     jQuery( 'button#zainpayng_payment_button' ).click( function() {
-        console.log('Button Clicked!');
-        // $('#zainpayng_payment_form form#order_review').submit();
-        return wcZainPayInlinePaymentHandler();
+        wcZainPayInlinePaymentHandler();
     } );
 
     jQuery( '#zainpayng_payment_form form#order_review' ).submit( function() {
-        console.log('Form Submitted!');
+        console.log('Order Form Submitted!');
         return true;
     })
 
@@ -23,13 +21,11 @@ jQuery( function( $ ) {
                 let $paymentForm = $( '#zainpayng_payment_form form#order_review' );
                 $paymentForm.append( '<input type="hidden" class="zainpayng_txnref" name="zainpayng_txnref" value="' + response.reference + '"/>' );
                 console.log('Payment successful for txnRef: ' + response.reference);
-                console.log($paymentForm.attr('action'));
-                console.log($paymentForm.attr('method'));
                 $paymentForm.submit();
-                alert('Payment successful. Please wait while we process your order.');
+                alert('Payment successful. Your order is being updated!');
                 return;
             case "failed":
-                // Handle failed payment (e.g., show failure message)
+                alert('Payment failed. Please try again to complete your order.');
                 $( '#wc_zainpayng_form' ).show();
                 break;
             case "cancelled":

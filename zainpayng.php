@@ -89,7 +89,6 @@ function woo_zainpayng_plugin_action_links( $links ) : array {
 
 /**
  * Custom function to register a payment method type
-
  */
 function zainpayng_register_payment_method() : void {
     // Check if the required class exists
@@ -110,7 +109,7 @@ function zainpayng_register_payment_method() : void {
     );
 }
 
-// Hook in
+// Hook in function to make phone billing required - ZainPay API requirement
 add_filter( 'woocommerce_checkout_fields' , 'make_billing_phone_field_required' );
 
 // Our hooked in function - $fields is passed via the filter!
